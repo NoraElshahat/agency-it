@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\SendEmail;
 use App\Ticket;
 use App\User;
-use Auth;
+use Illuminate\Http\Request;
+
 class TicketController extends Controller
 {
     /**
@@ -15,20 +16,26 @@ class TicketController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
+    public function index(Request $request)
     {
+        $request->validate([
+            'order_by' => ['nullable','sometimes','in:desc,asc'],
+        ]);
+        $tickets = auth()->user()->tickets()->when($request->order_by,function($q) use($request) {
+            $q->orderBy('deadline' , $request->order_by);
+        })->get();
         
-        $allTickets = Ticket::where('user_id' , '=' , Auth::id())->get();
-        return view ('viewAllTickets' , ['allTickets'  => $allTickets]);
+//         $allTickets = Ticket::where('user_id' , '=' , Auth::id())->get();
+        return view ('viewAllTickets' , compact('tickets'));
     }
 
-    public function sort()
-    {
-        $allTickets = Ticket::orderBy('deadline' , 'DESC')
-        ->where('user_id' , '=' , Auth::id())->get();
-        return view ('viewAllTickets' , ['allTickets'  => $allTickets]);
+//     public function sort()
+//     {
+//         $allTickets = Ticket::orderBy('deadline' , 'DESC')
+//         ->where('user_id' , '=' , Auth::id())->get();
+//         return view ('viewAllTickets' , ['allTickets'  => $allTickets]);
 
-    }
+//     }
     /**
      * Show the form for creating a new resource.
      *
@@ -37,7 +44,7 @@ class TicketController extends Controller
     public function create()
     {
         $users = User::all();
-        return view ('addTicket' ,['users' => $users]);
+        return view ('addTicket' ,compact('users');
     }
 
     /**
@@ -48,17 +55,20 @@ class TicketController extends Controller
      */
     public function store(Request $request)
     {
+        $request_data = $request->validate([
+            'description' => ['required'],
+            'status' => ['required'],
+            'deadline' => ['required'],
+        ]);
        // $emails=['ahmedelshahat@gmail.com','noraelshahat@gmail.com'];
-        Ticket::create($request->all());
-        
-
+        auth()->user()->tickets()->create($request_data);
+       
         Mail::to('ahmedelshahat@gmail.com')
-        ->send(new SendEmail($request->all()));
+        ->send(new SendEmail($request_data));
 
         
-        $allTickets = Ticket::where('user_id' , '=' , Auth::id())->get();
-        return view ('viewAllTickets' , ['allTickets'  => $allTickets])
-        ->with('success','Thanx for telling us :)');        
+//         $allTickets = Ticket::where('user_id' , '=' , Auth::id())->get();
+        return redirect()->route('tickets')->with('success','Thanx for telling us :)'); 
     }
 
     /**
@@ -67,7 +77,7 @@ class TicketController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function show($id)
+    public function show(Ticket $ticket)
     {
         return 'hi show';
     }
@@ -78,10 +88,9 @@ class TicketController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function edit($id)
+    public function edit(Ticket $ticket)
     {
-        $OneTicket = Ticket::find($id);
-        return view('editTicket',['oneTicket' => $OneTicket]);
+        return view('tickets.edit',compact('ticket'));
     }
 
     /**
@@ -91,10 +100,15 @@ class TicketController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, Ticket $ticket )
+    public function update(Request $request, Ticket $ticket)
     {
-        $ticket->update($request->all());
-        return redirect('/ticket');
+        $request_data = $request->validate([
+            'description' => ['required'],
+            'status' => ['required'],
+            'deadline' => ['required'],
+        ]);
+        $ticket->update($request_data);
+        return redirect()->route('tickets');
     }
 
     /**
@@ -103,10 +117,9 @@ class TicketController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(Ticket $ticket)
     {
-        $remove_one = Ticket::find($id);
-        $remove_one->delete();
-        return redirect('/ticket');
+        $ticket->delete();
+        return redirect()->route('tickets');
     }
 }
